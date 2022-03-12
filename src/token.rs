@@ -1,11 +1,10 @@
-use std::ops::Range;
-
 use chumsky::prelude::*;
 
-type Span = Range<usize>;
+use crate::Span;
+
 type Error = Simple<char>;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Token {
     With,
     Ident(String),
