@@ -36,7 +36,12 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
     let slash = just('/').to(Token::Slash);
     let l_paren = just('(').to(Token::LParen);
     let r_paren = just(')').to(Token::RParen);
-    let error = any().map(Token::Error);
+    let error = any()
+        .validate(|c, span, emit| {
+            emit(Simple::expected_input_found(span, [], Some(c)));
+            c
+        })
+        .map(Token::Error);
 
     choice((
         with, ident, number, comma, colon, plus, minus, star, slash, l_paren, r_paren,
