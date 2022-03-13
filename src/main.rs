@@ -1,6 +1,6 @@
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{Parser, Stream};
-use std::{fs::File, io::Read, ops::Range, path::PathBuf};
+use std::{fs::File, io::Read, ops::Range, path::PathBuf, process::exit};
 
 mod parser;
 mod token;
@@ -48,7 +48,7 @@ fn main() {
                 .expect("print error");
         });
 
-        return;
+        exit(1);
     }
 
     let tokens = tokens.unwrap();
@@ -77,5 +77,7 @@ fn main() {
                 .print((&src_id, Source::from(&src)))
                 .expect("print error");
         });
+
+        exit(1);
     }
 }
