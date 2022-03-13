@@ -9,7 +9,7 @@ use inkwell::{
     AddressSpace,
 };
 
-use crate::parser::{WithDecl, AST};
+use crate::parser::{Expr, Operator, WithDecl, AST};
 
 pub struct Codegen<'ctx> {
     context: &'ctx Context,
@@ -97,7 +97,34 @@ impl<'ctx> Codegen<'ctx> {
             AST::Expr(expr) => expr,
         };
 
+        let value = self.expr(&expr);
+
+        let ty_write_fn = self.ty_void.fn_type(&[self.ty_i32.into()], false);
+        let write_fn = self
+            .module
+            .add_function("calc_write", ty_write_fn, Some(Linkage::External));
+        self.builder
+            .build_call(write_fn, &[value.into()], "call_write");
+
         self.builder
             .build_return(Some(&self.ty_i32.const_int(0, false)));
+    }
+
+    fn expr(&self, expr: &Expr) -> IntValue<'ctx> {
+        match expr {
+            Expr::Ident(ident) => self.name_map.get(ident).unwrap().clone(),
+            Expr::Number(n) => self.ty_i32.const_int(*n as _, true),
+            Expr::BinaryOp { op, left, right } => {
+                let left = self.expr(left);
+                let right = self.expr(right);
+
+                match op {
+                    Operator::Plus => self.builder.build_int_nsw_add(left, right, "add"),
+                    Operator::Minus => self.builder.build_int_nsw_sub(left, right, "sub"),
+                    Operator::Mul => self.builder.build_int_nsw_mul(left, right, "mul"),
+                    Operator::Div => self.builder.build_int_signed_div(left, right, "div"),
+                }
+            }
+        }
     }
 }
