@@ -5,6 +5,12 @@ use chumsky::prelude::*;
 type Error = Simple<Token>;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Ident {
+    pub span: Span,
+    pub ident: String,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Operator {
     Plus,
     Minus,
@@ -14,7 +20,7 @@ pub enum Operator {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Expr {
-    Ident(String),
+    Ident(Ident),
     Number(u32),
     BinaryOp {
         op: Operator,
@@ -25,7 +31,7 @@ pub enum Expr {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct WithDecl {
-    pub vars: Vec<String>,
+    pub vars: Vec<Ident>,
     pub expr: Expr,
 }
 
@@ -43,7 +49,7 @@ pub fn parse_ast() -> impl Parser<Token, AST, Error = Error> {
 
 fn parse_with_decl() -> impl Parser<Token, WithDecl, Error = Error> {
     let ident = select! {
-        Token::Ident(i) => i
+        Token::Ident(ident), span => Ident {ident, span}
     };
 
     just(Token::With)
@@ -51,7 +57,7 @@ fn parse_with_decl() -> impl Parser<Token, WithDecl, Error = Error> {
             ident
                 .clone()
                 .chain(just(Token::Comma).ignore_then(ident.clone()))
-                .collect::<Vec<String>>(),
+                .collect::<Vec<Ident>>(),
         )
         .then_ignore(just(Token::Colon))
         .then(parse_expr())
@@ -62,7 +68,7 @@ fn parse_expr() -> impl Parser<Token, Expr, Error = Error> {
     recursive(|expr| {
         let factor = select! {
             Token::Number(x) => Expr::Number(x),
-            Token::Ident(i) => Expr::Ident(i)
+            Token::Ident(ident), span => Expr::Ident(Ident {ident, span})
         }
         .or(expr.delimited_by(just(Token::LParen), just(Token::RParen)));
 

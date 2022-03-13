@@ -89,7 +89,27 @@ fn main() {
     let module = context.create_module("main");
 
     let mut codegen = codegen::Codegen::new(&context, module);
-    codegen.run(&ast);
+    if let Err(e) = codegen.run(&ast) {
+        let msg = match &e {
+            codegen::Error::AlreadyDeclared(ident) => {
+                format!(
+                    "{} is already declared",
+                    ident.ident.as_str().fg(Color::Red)
+                )
+            }
+            codegen::Error::Undeclared(ident) => {
+                format!("{} is not declared", ident.ident.as_str().fg(Color::Red))
+            }
+        };
+
+        Report::build(ReportKind::Error, &src_id, e.span().start)
+            .with_message("codegen error")
+            .with_label(Label::new((&src_id, e.span())).with_message(msg))
+            .finish()
+            .print((&src_id, Source::from(&src)))
+            .expect("print error");
+        exit(1);
+    }
 
     print!("{}", codegen.module.print_to_string().to_string());
 }

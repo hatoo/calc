@@ -9,7 +9,22 @@ use inkwell::{
     AddressSpace,
 };
 
-use crate::parser::{Expr, Operator, WithDecl, AST};
+use crate::parser::{Expr, Ident, Operator, WithDecl, AST};
+use crate::Span;
+
+pub enum Error {
+    AlreadyDeclared(Ident),
+    Undeclared(Ident),
+}
+
+impl Error {
+    pub fn span(&self) -> Span {
+        match self {
+            Self::AlreadyDeclared(ident) => ident.span.clone(),
+            Self::Undeclared(ident) => ident.span.clone(),
+        }
+    }
+}
 
 pub struct Codegen<'ctx> {
     context: &'ctx Context,
@@ -41,7 +56,7 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
-    pub fn run(&mut self, ast: &AST) {
+    pub fn run(&mut self, ast: &AST) -> Result<(), Error> {
         let ty_main_fn = self
             .ty_i32
             .fn_type(&[self.ty_i32.into(), self.ty_i8_ptr_ptr.into()], false);
@@ -60,12 +75,12 @@ impl<'ctx> Codegen<'ctx> {
                         .add_function("calc_read", ty_read_fn, Some(Linkage::External));
 
                 for var in vars {
-                    let str_text = self.context.const_string(var.as_bytes(), true);
+                    let str_text = self.context.const_string(var.ident.as_bytes(), true);
 
                     let str = self.module.add_global(
                         str_text.get_type(),
                         None,
-                        format!("{}.str", var).as_str(),
+                        format!("{}.str", var.ident).as_str(),
                     );
 
                     str.set_constant(true);
@@ -89,7 +104,9 @@ impl<'ctx> Codegen<'ctx> {
                         .unwrap()
                         .into_int_value();
 
-                    assert!(self.name_map.insert(var.clone(), call).is_none());
+                    if self.name_map.insert(var.ident.clone(), call).is_some() {
+                        return Err(Error::AlreadyDeclared(var.clone()));
+                    }
                 }
 
                 expr
@@ -97,7 +114,7 @@ impl<'ctx> Codegen<'ctx> {
             AST::Expr(expr) => expr,
         };
 
-        let value = self.expr(&expr);
+        let value = self.expr(&expr)?;
 
         let ty_write_fn = self.ty_void.fn_type(&[self.ty_i32.into()], false);
         let write_fn = self
@@ -108,22 +125,28 @@ impl<'ctx> Codegen<'ctx> {
 
         self.builder
             .build_return(Some(&self.ty_i32.const_int(0, false)));
+
+        Ok(())
     }
 
-    fn expr(&self, expr: &Expr) -> IntValue<'ctx> {
+    fn expr(&self, expr: &Expr) -> Result<IntValue<'ctx>, Error> {
         match expr {
-            Expr::Ident(ident) => self.name_map.get(ident).unwrap().clone(),
-            Expr::Number(n) => self.ty_i32.const_int(*n as _, true),
+            Expr::Ident(ident) => self
+                .name_map
+                .get(&ident.ident)
+                .cloned()
+                .ok_or_else(|| Error::Undeclared(ident.clone())),
+            Expr::Number(n) => Ok(self.ty_i32.const_int(*n as _, true)),
             Expr::BinaryOp { op, left, right } => {
-                let left = self.expr(left);
-                let right = self.expr(right);
+                let left = self.expr(left)?;
+                let right = self.expr(right)?;
 
-                match op {
+                Ok(match op {
                     Operator::Plus => self.builder.build_int_nsw_add(left, right, "add"),
                     Operator::Minus => self.builder.build_int_nsw_sub(left, right, "sub"),
                     Operator::Mul => self.builder.build_int_nsw_mul(left, right, "mul"),
                     Operator::Div => self.builder.build_int_signed_div(left, right, "div"),
-                }
+                })
             }
         }
     }
