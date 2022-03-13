@@ -88,7 +88,7 @@ fn main() {
     let context = Context::create();
     let module = context.create_module("main");
 
-    let codegen = codegen::Codegen::new(&context, module);
+    let mut codegen = codegen::Codegen::new(&context, module);
     codegen.run(&ast);
 
     print!("{}", codegen.module.print_to_string().to_string());

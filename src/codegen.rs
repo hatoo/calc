@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use inkwell::{
     builder::Builder,
     context::Context,
@@ -18,6 +20,7 @@ pub struct Codegen<'ctx> {
     ty_i8_ptr: PointerType<'ctx>,
     ty_i8_ptr_ptr: PointerType<'ctx>,
     i32_zero: IntValue<'ctx>,
+    name_map: HashMap<String, IntValue<'ctx>>,
 }
 
 impl<'ctx> Codegen<'ctx> {
@@ -34,10 +37,11 @@ impl<'ctx> Codegen<'ctx> {
                 .ptr_type(AddressSpace::Generic)
                 .ptr_type(AddressSpace::Generic),
             i32_zero: context.i32_type().const_int(0, true),
+            name_map: Default::default(),
         }
     }
 
-    pub fn run(&self, ast: &AST) {
+    pub fn run(&mut self, ast: &AST) {
         let ty_main_fn = self
             .ty_i32
             .fn_type(&[self.ty_i32.into(), self.ty_i8_ptr_ptr.into()], false);
@@ -77,7 +81,15 @@ impl<'ctx> Codegen<'ctx> {
                         )
                     };
 
-                    let call = self.builder.build_call(read_fn, &[ptr.into()], "call");
+                    let call = self
+                        .builder
+                        .build_call(read_fn, &[ptr.into()], "call")
+                        .try_as_basic_value()
+                        .left()
+                        .unwrap()
+                        .into_int_value();
+
+                    assert!(self.name_map.insert(var.clone(), call).is_none());
                 }
 
                 expr
