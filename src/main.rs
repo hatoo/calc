@@ -1,5 +1,6 @@
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{Parser, Stream};
+use inkwell::context::Context;
 use std::{fs::File, io::Read, ops::Range, path::PathBuf, process::exit};
 
 mod parser;
@@ -80,4 +81,17 @@ fn main() {
 
         exit(1);
     }
+
+    let context = Context::create();
+    let module = context.create_module("main");
+    let builder = context.create_builder();
+
+    let i32_type = context.i32_type();
+    let main_type = i32_type.fn_type(&[], false);
+    let function = module.add_function("main", main_type, None);
+    let basic_block = context.append_basic_block(function, "entry");
+    builder.position_at_end(basic_block);
+    builder.build_return(Some(&i32_type.const_int(0, false)));
+
+    print!("{}", module.print_to_string().to_string());
 }
