@@ -56,7 +56,7 @@ fn parse_with_decl() -> impl Parser<Token, WithDecl, Error = Error> {
         .ignore_then(
             ident
                 .clone()
-                .chain(just(Token::Comma).ignore_then(ident.clone()))
+                .chain(just(Token::Comma).ignore_then(ident.clone()).repeated())
                 .collect::<Vec<Ident>>(),
         )
         .then_ignore(just(Token::Colon))
